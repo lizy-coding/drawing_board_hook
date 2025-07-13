@@ -1,4 +1,4 @@
-name: code_example
+name: flutter_hook_widget_example
 description: "Demonstrates how to use the code plugin."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
