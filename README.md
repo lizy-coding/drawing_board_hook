@@ -1,67 +1,152 @@
-# Flutter Hook Widget Examples
+# 吸附线画板 (Adsorption Line Drawing Board)
 
-这个项目旨在展示和学习 Flutter Hooks 的使用方法。Flutter Hooks 是一种用于状态管理的强大模式，源自于 React Hooks 的概念。
+一个基于Flutter开发的智能画板应用，支持元素创建、拖拽和智能吸附线功能。
 
-## 项目结构
+## 项目特性
+
+- 🎨 **多种绘图元素**：支持矩形、圆形、线条等基本图形
+- 🧲 **智能吸附功能**：元素拖拽时自动显示吸附线，实现精确对齐
+- 🎯 **实时预览**：拖拽过程中实时显示吸附效果
+- ⚡ **流畅交互**：优化的拖拽算法，减少晃动，提供流畅体验
+- 🎛️ **工具栏**：完整的工具选择和属性设置面板
+- ⌨️ **快捷键支持**：Delete/Backspace删除元素，Escape取消选择
+
+## 项目架构
 
 ```
 lib/
-  ├── src/
-  │   └── examples/
-  │       ├── counter_hook.dart      # 计数器示例
-  │       ├── text_field_hook.dart   # 文本输入示例
-  │       ├── animation_hook.dart    # 动画示例
-  │       └── lifecycle_hook.dart    # 生命周期示例
-  └── flutter_hook_widget.dart       # 主入口文件
+├── main.dart                 # 应用入口
+├── models/
+│   └── drawing_element.dart   # 绘图元素模型
+├── services/
+│   └── adsorption_manager.dart # 吸附线管理服务
+├── state/
+│   └── drawing_state.dart     # 画板状态管理
+└── widgets/
+    ├── drawing_board.dart     # 主画板组件
+    └── drawing_canvas.dart    # 画布绘制组件
 ```
 
-## 示例列表
+### 核心组件说明
 
-1. **Counter Hook**
-   - 使用 `useState` hook 实现计数器功能
-   - 展示基本的状态管理
+#### 1. DrawingElement (绘图元素模型)
+- 定义了矩形、圆形、线条等基本图形
+- 提供吸附点计算、碰撞检测等核心方法
+- 支持元素属性的复制和修改
 
-2. **Text Field Hook** (即将添加)
-   - 使用 `useTextEditingController` 管理文本输入
-   - 展示表单控制和验证
+#### 2. AdsorptionManager (吸附管理器)
+- 计算元素间的吸附线
+- 处理磁吸效果和位置调整
+- 管理吸附线的显示和隐藏（500ms延迟）
 
-3. **Animation Hook** (即将添加)
-   - 使用 `useAnimationController` 实现动画效果
-   - 展示动画状态管理
+#### 3. DrawingState (状态管理)
+- 管理画板上的所有元素
+- 处理元素的增删改查操作
+- 管理拖拽状态和选中状态
 
-4. **Lifecycle Hook** (即将添加)
-   - 使用 `useEffect` 管理组件生命周期
-   - 展示副作用处理
+#### 4. DrawingBoard (主画板)
+- 提供完整的用户界面
+- 集成工具栏和画布
+- 处理用户交互事件
 
-## 常用 Hooks 说明
+#### 5. DrawingCanvas (画布组件)
+- 负责元素的绘制渲染
+- 绘制选中边框和吸附线
+- 处理画布的手势事件
 
-- **useState**: 用于管理状态
-- **useEffect**: 处理副作用
-- **useMemoized**: 缓存计算结果
-- **useCallback**: 缓存回调函数
-- **useRef**: 持久化值的引用
+## 功能特性详解
 
-## 开始使用
+### 智能吸附系统
+- **吸附阈值**：20像素范围内触发吸附
+- **吸附点**：每个元素提供多个吸附点（角点、边中点、中心点等）
+- **延迟隐藏**：吸附线在500ms后自动隐藏
+- **平滑过渡**：优化的算法减少拖拽晃动
 
-1. 确保你的 Flutter 环境已经设置好
-2. 克隆此仓库
-3. 运行以下命令：
+### 交互体验
+- **点击创建**：在空白区域点击创建新元素
+- **拖拽移动**：选中元素后可自由拖拽
+- **智能对齐**：拖拽时自动显示对齐辅助线
+- **快捷操作**：支持键盘快捷键操作
 
+## 运行环境要求
+
+- Flutter SDK: >=3.0.0
+- Dart SDK: >=3.0.0
+- 支持平台：macOS, Windows, Linux
+
+## 安装和运行
+
+### 1. 克隆项目
+```bash
+git clone <repository-url>
+cd adsorption_line
+```
+
+### 2. 安装依赖
 ```bash
 flutter pub get
-flutter run
 ```
 
-## 学习资源
+### 3. 运行应用
 
-- [Flutter Hooks 官方文档](https://pub.dev/packages/flutter_hooks)
-- [Flutter Hooks 教程](https://pub.dev/documentation/flutter_hooks/latest/)
+#### macOS
+```bash
+flutter run -d macos
+```
 
-## 贡献
+#### Windows
+```bash
+flutter run -d windows
+```
 
-欢迎提交 Pull Request 来改进代码或添加新的示例！
+#### Linux
+```bash
+flutter run -d linux
+```
 
-## 许可证
+### 4. 构建发布版本
 
-MIT License
+#### macOS
+```bash
+flutter build macos
+```
+
+#### Windows
+```bash
+flutter build windows
+```
+
+## 使用说明
+
+### 基本操作
+1. **选择工具**：在左侧工具栏选择要创建的图形类型
+2. **设置属性**：调整颜色和线条粗细
+3. **创建元素**：在画布空白处点击创建新元素
+4. **选择元素**：点击已有元素进行选择
+5. **拖拽移动**：拖拽选中的元素到新位置
+6. **删除元素**：选中元素后按Delete或Backspace键
+
+### 吸附功能
+- 拖拽元素时，当接近其他元素的对齐位置时会自动显示吸附线
+- 吸附线帮助实现精确的元素对齐
+- 松开鼠标后，吸附线会在500ms后自动消失
+
+## 技术实现
+
+### 状态管理
+使用Provider模式进行状态管理，确保UI与数据的同步更新。
+
+### 自定义绘制
+使用CustomPainter实现高性能的图形绘制和吸附线渲染。
+
+### 几何计算
+实现了完整的几何计算算法，包括：
+- 点到线段的距离计算
+- 元素边界检测
+- 吸附点位置计算
+
+### 性能优化
+- 简化的吸附算法减少计算复杂度
+- 优化的重绘机制提高渲染性能
+- 智能的状态更新减少不必要的UI刷新
 
