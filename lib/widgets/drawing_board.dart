@@ -1,36 +1,156 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/drawing_element.dart';
-import '../state/drawing_state.dart';
+import '../providers/drawing_provider.dart';
 import '../services/adsorption_manager.dart';
 import 'drawing_canvas.dart';
 
 /// 画板主界面
-class DrawingBoard extends StatefulWidget {
+class DrawingBoard extends HookConsumerWidget {
   const DrawingBoard({super.key});
 
   @override
-  State<DrawingBoard> createState() => _DrawingBoardState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedTool = useState(ElementType.rectangle);
+    final selectedColor = useState(Colors.blue);
+    final strokeWidth = useState(2.0);
+    final focusNode = useFocusNode();
 
-class _DrawingBoardState extends State<DrawingBoard> {
-  ElementType _selectedTool = ElementType.rectangle;
-  Color _selectedColor = Colors.blue;
-  double _strokeWidth = 2.0;
+    // 使用useEffect替代dispose
+    useEffect(() {
+      focusNode.requestFocus();
+      return () {
+        // 清理吸附管理器的计时器
+        AdsorptionManager.dispose();
+      };
+    }, []);
 
-  @override
-  void dispose() {
-    // 清理吸附管理器的计时器
-    AdsorptionManager.dispose();
-    super.dispose();
-  }
+    final drawingState = ref.watch(drawingStateProvider);
+    final elements = ref.watch(elementsProvider);
+    final selectedElement = ref.watch(selectedElementProvider);
 
-  @override
-  Widget build(BuildContext context) {
+    void handleCanvasTap(Offset position) {
+      final element = drawingState.findElementAt(position);
+      if (element != null) {
+        ref.read(drawingStateProvider.notifier).selectElement(element.id);
+      } else {
+        ref.read(drawingStateProvider.notifier).clearSelection();
+
+        // 创建新元素
+        final newElement = DrawingElement(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          type: selectedTool.value,
+          position: position,
+          size: const Size(100, 60),
+          color: selectedColor.value,
+          strokeWidth: strokeWidth.value,
+        );
+
+        ref.read(drawingStateProvider.notifier).addElement(newElement);
+      }
+    }
+
+    void handlePanStart(Offset position) {
+      final element = drawingState.findElementAt(position);
+      if (element != null) {
+        ref.read(drawingStateProvider.notifier).selectElement(element.id);
+        ref.read(drawingStateProvider.notifier).startDrag(position);
+      }
+    }
+
+    void handlePanUpdate(Offset position) {
+      ref.read(drawingStateProvider.notifier).updateDrag(position);
+    }
+
+    void handlePanEnd() {
+      ref.read(drawingStateProvider.notifier).endDrag();
+    }
+
+    Widget buildToolbar() {
+      return Container(
+        height: 60,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          border: const Border(
+            bottom: BorderSide(color: Colors.grey, width: 0.5),
+          ),
+        ),
+        child: Row(
+          children: [
+            // 工具选择
+            const Text('工具: ', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            ...ElementType.values.map((type) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(_getToolName(type)),
+                  selected: selectedTool.value == type,
+                  onSelected: (selected) {
+                    if (selected) {
+                      selectedTool.value = type;
+                    }
+                  },
+                ),
+              );
+            }),
+            const SizedBox(width: 16),
+
+            // 颜色选择
+            const Text('颜色: ', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            ...[
+              Colors.blue,
+              Colors.red,
+              Colors.green,
+              Colors.orange,
+              Colors.purple
+            ].map((color) {
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () => selectedColor.value = color,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: color,
+                      shape: BoxShape.circle,
+                      border: selectedColor.value == color
+                          ? Border.all(color: Colors.black, width: 2)
+                          : null,
+                    ),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(width: 16),
+
+            // 线宽选择
+            const Text('线宽: ', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 100,
+              child: Slider(
+                value: strokeWidth.value,
+                min: 1.0,
+                max: 10.0,
+                divisions: 9,
+                label: strokeWidth.value.round().toString(),
+                onChanged: (value) => strokeWidth.value = value,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return KeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
+      focusNode: focusNode,
       onKeyEvent: (event) {
-        context.read<DrawingState>().handleKeyEvent(event);
+        drawingState.handleKeyEvent(event);
       },
       child: Scaffold(
         appBar: AppBar(
@@ -41,320 +161,54 @@ class _DrawingBoardState extends State<DrawingBoard> {
             IconButton(
               icon: const Icon(Icons.clear_all),
               onPressed: () {
-                context.read<DrawingState>().clear();
+                ref.read(drawingStateProvider.notifier).clear();
               },
               tooltip: '清空画板',
             ),
-            Consumer<DrawingState>(
-              builder: (context, drawingState, child) {
-                return IconButton(
-                  icon: const Icon(Icons.delete),
-                  onPressed: drawingState.selectedElement != null
-                      ? () => drawingState.deleteSelectedElement()
-                      : null,
-                  tooltip: '删除选中元素',
-                );
-              },
+            IconButton(
+              icon: const Icon(Icons.delete),
+              onPressed: selectedElement != null
+                  ? () => ref
+                      .read(drawingStateProvider.notifier)
+                      .deleteSelectedElement()
+                  : null,
+              tooltip: '删除选中元素',
             ),
           ],
         ),
         body: Column(
           children: [
             // 工具栏
-            _buildToolbar(),
+            buildToolbar(),
             // 画板区域
             Expanded(
               child: Container(
                 width: double.infinity,
                 color: Colors.white,
-                child: Consumer<DrawingState>(
-                  builder: (context, drawingState, child) {
-                    return DrawingCanvas(
-                      elements: drawingState.elements,
-                      selectedElement: drawingState.selectedElement,
-                      onTap: _handleCanvasTap,
-                      onPanStart: _handlePanStart,
-                      onPanUpdate: _handlePanUpdate,
-                      onPanEnd: _handlePanEnd,
-                    );
-                  },
+                child: DrawingCanvas(
+                  elements: elements,
+                  selectedElement: selectedElement,
+                  onTap: handleCanvasTap,
+                  onPanStart: handlePanStart,
+                  onPanUpdate: handlePanUpdate,
+                  onPanEnd: handlePanEnd,
                 ),
               ),
             ),
-            // 状态栏
-            _buildStatusBar(),
           ],
         ),
       ),
     );
   }
 
-  /// 构建工具栏
-  Widget _buildToolbar() {
-    return Container(
-      height: 60,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        border: Border(
-          bottom: BorderSide(color: Colors.grey[300]!),
-        ),
-      ),
-      child: Row(
-        children: [
-          // 工具选择
-          _buildToolButton(
-            icon: Icons.crop_square,
-            tool: ElementType.rectangle,
-            tooltip: '矩形',
-          ),
-          const SizedBox(width: 8),
-          _buildToolButton(
-            icon: Icons.circle_outlined,
-            tool: ElementType.circle,
-            tooltip: '圆形',
-          ),
-          const SizedBox(width: 8),
-          _buildToolButton(
-            icon: Icons.remove,
-            tool: ElementType.line,
-            tooltip: '直线',
-          ),
-          const SizedBox(width: 16),
-          // 分隔线
-          Container(
-            width: 1,
-            height: 30,
-            color: Colors.grey[300],
-          ),
-          const SizedBox(width: 16),
-          // 颜色选择
-          const Text('颜色: '),
-          const SizedBox(width: 8),
-          _buildColorButton(Colors.blue),
-          const SizedBox(width: 4),
-          _buildColorButton(Colors.red),
-          const SizedBox(width: 4),
-          _buildColorButton(Colors.green),
-          const SizedBox(width: 4),
-          _buildColorButton(Colors.orange),
-          const SizedBox(width: 4),
-          _buildColorButton(Colors.purple),
-          const SizedBox(width: 16),
-          // 线宽选择
-          const Text('线宽: '),
-          SizedBox(
-            width: 100,
-            child: Slider(
-              value: _strokeWidth,
-              min: 1.0,
-              max: 10.0,
-              divisions: 9,
-              label: _strokeWidth.round().toString(),
-              onChanged: (value) {
-                setState(() {
-                  _strokeWidth = value;
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 构建工具按钮
-  Widget _buildToolButton({
-    required IconData icon,
-    required ElementType tool,
-    required String tooltip,
-  }) {
-    final isSelected = _selectedTool == tool;
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedTool = tool;
-          });
-        },
-        borderRadius: BorderRadius.circular(4),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.blue[100] : Colors.transparent,
-            border: Border.all(
-              color: isSelected ? Colors.blue : Colors.grey[300]!,
-            ),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Icon(
-            icon,
-            color: isSelected ? Colors.blue : Colors.grey[600],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建颜色按钮
-  Widget _buildColorButton(Color color) {
-    final isSelected = _selectedColor == color;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedColor = color;
-        });
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: isSelected ? Colors.black : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 构建状态栏
-  Widget _buildStatusBar() {
-    return Consumer<DrawingState>(
-      builder: (context, drawingState, child) {
-        return Container(
-          height: 30,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.grey[100],
-            border: Border(
-              top: BorderSide(color: Colors.grey[300]!),
-            ),
-          ),
-          child: Row(
-            children: [
-              Text(
-                '元素数量: ${drawingState.elements.length}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(width: 16),
-              if (drawingState.selectedElement != null)
-                Text(
-                  '已选择: ${drawingState.selectedElement!.type.name}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// 处理画布点击
-  void _handleCanvasTap(Offset position) {
-    final drawingState = context.read<DrawingState>();
-
-    // 检查是否点击了现有元素
-    final clickedElement = drawingState.findElementAt(position);
-
-    if (clickedElement != null) {
-      // 选择元素
-      drawingState.selectElement(clickedElement.id);
-    } else {
-      // 创建新元素
-      _createElementAt(position);
-      drawingState.clearSelection();
-    }
-  }
-
-  /// 在指定位置创建元素
-  void _createElementAt(Offset position) {
-    final drawingState = context.read<DrawingState>();
-
-    // 默认尺寸
-    Size defaultSize;
-    switch (_selectedTool) {
+  String _getToolName(ElementType type) {
+    switch (type) {
       case ElementType.rectangle:
-        defaultSize = const Size(80, 60);
-        break;
+        return '矩形';
       case ElementType.circle:
-        defaultSize = const Size(60, 60);
-        break;
+        return '圆形';
       case ElementType.line:
-        defaultSize = const Size(100, 0);
-        break;
+        return '直线';
     }
-
-    final element = DrawingElement(
-      id: DrawingElement.generateId(),
-      position: Offset(
-        position.dx - defaultSize.width / 2,
-        position.dy - defaultSize.height / 2,
-      ),
-      size: defaultSize,
-      type: _selectedTool,
-      color: _selectedColor,
-      strokeWidth: _strokeWidth,
-    );
-
-    drawingState.addElement(element);
-  }
-
-  /// 处理拖拽开始
-  void _handlePanStart(Offset position) {
-    final drawingState = context.read<DrawingState>();
-    final element = drawingState.findElementAt(position);
-
-    if (element != null) {
-      drawingState.selectElement(element.id);
-      drawingState.startDrag(position);
-    }
-  }
-
-  /// 处理拖拽更新
-  void _handlePanUpdate(Offset position) {
-    final drawingState = context.read<DrawingState>();
-
-    if (drawingState.isDragging && drawingState.selectedElement != null) {
-      // 应用磁吸效果的拖拽逻辑
-      final magneticPosition = AdsorptionManager.applyMagneticEffect(
-        position,
-        drawingState.elements,
-        drawingState.selectedElement!,
-      );
-
-      drawingState.updateDrag(magneticPosition);
-    }
-  }
-
-  /// 处理拖拽结束
-  void _handlePanEnd() {
-    final drawingState = context.read<DrawingState>();
-
-    // 在拖拽结束时应用最终的磁吸效果
-    if (drawingState.selectedElement != null) {
-      AdsorptionManager.applyMagneticEffect(
-        drawingState.selectedElement!.position,
-        drawingState.elements,
-        drawingState.selectedElement!,
-        onElementSnapped: (snappedElement) {
-          // 更新元素的最终坐标
-          drawingState.updateElement(snappedElement);
-        },
-      );
-    }
-
-    drawingState.endDrag();
   }
 }
