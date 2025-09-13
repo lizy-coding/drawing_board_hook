@@ -200,17 +200,15 @@ class DrawingBoard extends HookConsumerWidget {
               child: Container(
                 width: double.infinity,
                 color: Colors.white,
-                child: MouseRegion(
-              cursor: _getCursorForTool(selectedTool.value),
-              child: DrawingCanvas(
-                elements: elements,
-                selectedElement: selectedElement,
-                onTap: handleCanvasTap,
-                onPanStart: handlePanStart,
-                onPanUpdate: handlePanUpdate,
-                onPanEnd: handlePanEnd,
-              ),
-            ),
+                child: DrawingCanvas(
+                  elements: elements,
+                  selectedElement: selectedElement,
+                  onTap: handleCanvasTap,
+                  onPanStart: handlePanStart,
+                  onPanUpdate: handlePanUpdate,
+                  onPanEnd: handlePanEnd,
+                  isPointInResizeHandle: (position) => drawingState.isPointInResizeHandle(position),
+                ),
               ),
             ),
           ],

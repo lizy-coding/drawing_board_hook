@@ -78,7 +78,7 @@ class DrawingElement {
 
   /// 获取缩放控制点的矩形区域（用于点击检测）
   Rect get resizeHandleRect {
-    const handleSize = 8.0; // 控制点大小
+    const handleSize = 20.0; // 扩大触发热区，提高缩放点灵敏度
     final handleCenter = resizeHandle;
     return Rect.fromCenter(
       center: handleCenter,

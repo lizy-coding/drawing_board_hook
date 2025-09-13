@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/drawing_element.dart';
 import '../services/adsorption_manager.dart';
 import 'dart:math' as math;
 
 /// 画板画布组件
-class DrawingCanvas extends StatelessWidget {
+class DrawingCanvas extends StatefulWidget {
   final List<DrawingElement> elements;
   final DrawingElement? selectedElement;
   final Function(Offset) onTap;
   final Function(Offset) onPanStart;
   final Function(Offset) onPanUpdate;
   final Function() onPanEnd;
+  final Function(Offset)? isPointInResizeHandle;
 
   const DrawingCanvas({
     super.key,
@@ -20,21 +22,77 @@ class DrawingCanvas extends StatelessWidget {
     required this.onPanStart,
     required this.onPanUpdate,
     required this.onPanEnd,
+    this.isPointInResizeHandle,
   });
 
   @override
+  State<DrawingCanvas> createState() => _DrawingCanvasState();
+}
+
+class _DrawingCanvasState extends State<DrawingCanvas> {
+  SystemMouseCursor _currentCursor = SystemMouseCursors.basic;
+
+  /// 检查是否在缩放控制点上
+  bool _isInResizeHandle(Offset position) {
+    if (widget.selectedElement == null) return false;
+    return widget.isPointInResizeHandle?.call(position) ?? false;
+  }
+
+  /// 检查是否在右下角热区
+  bool _isInBottomRightHotZone(Offset position, Size size) {
+    const hotZoneSize = 20.0;
+    return position.dx > size.width - hotZoneSize && 
+           position.dy > size.height - hotZoneSize;
+  }
+
+  /// 根据位置更新光标
+  void _updateCursor(Offset position, Size size) {
+    SystemMouseCursor newCursor;
+    
+    final isInResize = _isInResizeHandle(position);
+    final isInHotZone = _isInBottomRightHotZone(position, size);
+    
+    if (isInResize) {
+      // 在缩放控制点上显示双箭头光标，明确指示缩放功能
+      newCursor = SystemMouseCursors.resizeUpLeftDownRight;
+      print('光标切换到缩放模式 - 缩放控制点');
+    } else if (isInHotZone) {
+      // 右下角热区也显示双箭头光标
+      newCursor = SystemMouseCursors.resizeUpLeftDownRight;
+      print('光标切换到缩放模式 - 右下角热区');
+    } else {
+      newCursor = SystemMouseCursors.basic;
+    }
+    
+    if (_currentCursor != newCursor) {
+      setState(() {
+        _currentCursor = newCursor;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (details) => onTap(details.localPosition),
-      onPanStart: (details) => onPanStart(details.localPosition),
-      onPanUpdate: (details) => onPanUpdate(details.localPosition),
-      onPanEnd: (_) => onPanEnd(),
-      child: CustomPaint(
-        painter: DrawingCanvasPainter(
-          elements: elements,
-          selectedElement: selectedElement,
+    return MouseRegion(
+      cursor: _currentCursor,
+      onHover: (event) {
+        final renderBox = context.findRenderObject() as RenderBox?;
+        if (renderBox != null) {
+          _updateCursor(event.localPosition, renderBox.size);
+        }
+      },
+      child: GestureDetector(
+        onTapDown: (details) => widget.onTap(details.localPosition),
+        onPanStart: (details) => widget.onPanStart(details.localPosition),
+        onPanUpdate: (details) => widget.onPanUpdate(details.localPosition),
+        onPanEnd: (_) => widget.onPanEnd(),
+        child: CustomPaint(
+          painter: DrawingCanvasPainter(
+            elements: widget.elements,
+            selectedElement: widget.selectedElement,
+          ),
+          size: Size.infinite,
         ),
-        size: Size.infinite,
       ),
     );
   }
