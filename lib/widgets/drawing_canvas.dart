@@ -76,6 +76,9 @@ class DrawingCanvasPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     switch (element.type) {
+      case ElementType.select:
+        // 选择工具不绘制任何内容
+        break;
       case ElementType.rectangle:
         canvas.drawRect(element.bounds, paint);
         break;
@@ -106,25 +109,38 @@ class DrawingCanvasPainter extends CustomPainter {
     final rect = element.bounds.inflate(5);
     _drawDashedRect(canvas, rect, paint);
 
-    // 绘制控制点
+    // 绘制普通控制点
     final controlPointPaint = Paint()
       ..color = Colors.blue
       ..style = PaintingStyle.fill;
 
-    final controlPoints = [
+    final normalControlPoints = [
       rect.topLeft,
       rect.topRight,
       rect.bottomLeft,
-      rect.bottomRight,
       Offset(rect.center.dx, rect.top),
       Offset(rect.center.dx, rect.bottom),
       Offset(rect.left, rect.center.dy),
       Offset(rect.right, rect.center.dy),
     ];
 
-    for (final point in controlPoints) {
+    for (final point in normalControlPoints) {
       canvas.drawCircle(point, 3, controlPointPaint);
     }
+
+    // 绘制右下角缩放控制点（特殊样式）
+    final resizeHandlePaint = Paint()
+      ..color = Colors.orange
+      ..style = PaintingStyle.fill;
+    
+    final resizeHandleBorderPaint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 1.0
+      ..style = PaintingStyle.stroke;
+
+    // 绘制右下角缩放控制点
+    canvas.drawCircle(rect.bottomRight, 4, resizeHandlePaint);
+    canvas.drawCircle(rect.bottomRight, 4, resizeHandleBorderPaint);
   }
 
   /// 绘制吸附线

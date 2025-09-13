@@ -6,11 +6,14 @@ class DrawingState extends ChangeNotifier {
   final List<DrawingElement> _elements = [];
   DrawingElement? _selectedElement;
   bool _isDragging = false;
+  bool _isResizing = false;
   Offset? _dragOffset;
+  Offset? _resizeStartPosition;
 
   List<DrawingElement> get elements => List.unmodifiable(_elements);
   DrawingElement? get selectedElement => _selectedElement;
   bool get isDragging => _isDragging;
+  bool get isResizing => _isResizing;
 
   void addElement(DrawingElement element) {
     _elements.add(element);
@@ -73,6 +76,26 @@ class DrawingState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void startResize(Offset position) {
+    _isResizing = true;
+    _resizeStartPosition = position;
+    notifyListeners();
+  }
+
+  void updateResize(Offset position) {
+    if (_isResizing && _selectedElement != null && _resizeStartPosition != null) {
+      // 使用元素的缩放方法进行缩放
+      final updatedElement = _selectedElement!.resizeToPoint(position);
+      updateElement(updatedElement);
+    }
+  }
+
+  void endResize() {
+    _isResizing = false;
+    _resizeStartPosition = null;
+    notifyListeners();
+  }
+
   DrawingElement? findElementAt(Offset position) {
     for (int i = _elements.length - 1; i >= 0; i--) {
       if (_elements[i].containsPoint(position)) {
@@ -82,11 +105,18 @@ class DrawingState extends ChangeNotifier {
     return null;
   }
 
+  /// 检查指定位置是否在选中元素的缩放控制点上
+  bool isPointInResizeHandle(Offset position) {
+    return _selectedElement?.isPointInResizeHandle(position) ?? false;
+  }
+
   void clear() {
     _elements.clear();
     _selectedElement = null;
     _isDragging = false;
+    _isResizing = false;
     _dragOffset = null;
+    _resizeStartPosition = null;
     notifyListeners();
   }
 

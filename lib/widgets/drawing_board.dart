@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import '../models/drawing_element.dart';
@@ -12,11 +13,11 @@ class DrawingBoard extends HookConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selectedTool = useState(ElementType.rectangle);
+    final selectedTool = useState(ElementType.select); // 默认为选择工具
     final selectedColor = useState(Colors.blue);
     final strokeWidth = useState(2.0);
     final focusNode = useFocusNode();
-
+    
     // 使用useEffect替代dispose
     useEffect(() {
       focusNode.requestFocus();
@@ -25,33 +26,47 @@ class DrawingBoard extends HookConsumerWidget {
         AdsorptionManager.dispose();
       };
     }, []);
-
+    
     final drawingState = ref.watch(drawingStateProvider);
     final elements = ref.watch(elementsProvider);
     final selectedElement = ref.watch(selectedElementProvider);
 
     void handleCanvasTap(Offset position) {
+      // 检查是否点击了缩放控制点
+      if (selectedElement != null && drawingState.isPointInResizeHandle(position)) {
+        // 点击了缩放控制点，不做任何操作（由拖拽处理）
+        return;
+      }
+      
       final element = drawingState.findElementAt(position);
       if (element != null) {
         ref.read(drawingStateProvider.notifier).selectElement(element.id);
       } else {
         ref.read(drawingStateProvider.notifier).clearSelection();
-
-        // 创建新元素
-        final newElement = DrawingElement(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          type: selectedTool.value,
-          position: position,
-          size: const Size(100, 60),
-          color: selectedColor.value,
-          strokeWidth: strokeWidth.value,
-        );
-
-        ref.read(drawingStateProvider.notifier).addElement(newElement);
+        
+        // 只有在非选择模式下才创建新元素
+        if (selectedTool.value != ElementType.select) {
+          final newElement = DrawingElement(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            type: selectedTool.value,
+            position: position,
+            size: const Size(100, 60),
+            color: selectedColor.value,
+            strokeWidth: strokeWidth.value,
+          );
+          
+          ref.read(drawingStateProvider.notifier).addElement(newElement);
+        }
       }
     }
 
     void handlePanStart(Offset position) {
+      // 优先检查是否点击了缩放控制点
+      if (selectedElement != null && drawingState.isPointInResizeHandle(position)) {
+        ref.read(drawingStateProvider.notifier).startResize(position);
+        return;
+      }
+      
       final element = drawingState.findElementAt(position);
       if (element != null) {
         ref.read(drawingStateProvider.notifier).selectElement(element.id);
@@ -60,11 +75,19 @@ class DrawingBoard extends HookConsumerWidget {
     }
 
     void handlePanUpdate(Offset position) {
-      ref.read(drawingStateProvider.notifier).updateDrag(position);
+      if (drawingState.isResizing) {
+        ref.read(drawingStateProvider.notifier).updateResize(position);
+      } else if (drawingState.isDragging) {
+        ref.read(drawingStateProvider.notifier).updateDrag(position);
+      }
     }
 
     void handlePanEnd() {
-      ref.read(drawingStateProvider.notifier).endDrag();
+      if (drawingState.isResizing) {
+        ref.read(drawingStateProvider.notifier).endResize();
+      } else {
+        ref.read(drawingStateProvider.notifier).endDrag();
+      }
     }
 
     Widget buildToolbar() {
@@ -97,17 +120,11 @@ class DrawingBoard extends HookConsumerWidget {
               );
             }),
             const SizedBox(width: 16),
-
+            
             // 颜色选择
             const Text('颜色: ', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
-            ...[
-              Colors.blue,
-              Colors.red,
-              Colors.green,
-              Colors.orange,
-              Colors.purple
-            ].map((color) {
+            ...[Colors.blue, Colors.red, Colors.green, Colors.orange, Colors.purple].map((color) {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: GestureDetector(
@@ -127,7 +144,7 @@ class DrawingBoard extends HookConsumerWidget {
               );
             }),
             const SizedBox(width: 16),
-
+            
             // 线宽选择
             const Text('线宽: ', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(width: 8),
@@ -168,9 +185,7 @@ class DrawingBoard extends HookConsumerWidget {
             IconButton(
               icon: const Icon(Icons.delete),
               onPressed: selectedElement != null
-                  ? () => ref
-                      .read(drawingStateProvider.notifier)
-                      .deleteSelectedElement()
+                  ? () => ref.read(drawingStateProvider.notifier).deleteSelectedElement()
                   : null,
               tooltip: '删除选中元素',
             ),
@@ -185,14 +200,17 @@ class DrawingBoard extends HookConsumerWidget {
               child: Container(
                 width: double.infinity,
                 color: Colors.white,
-                child: DrawingCanvas(
-                  elements: elements,
-                  selectedElement: selectedElement,
-                  onTap: handleCanvasTap,
-                  onPanStart: handlePanStart,
-                  onPanUpdate: handlePanUpdate,
-                  onPanEnd: handlePanEnd,
-                ),
+                child: MouseRegion(
+              cursor: _getCursorForTool(selectedTool.value),
+              child: DrawingCanvas(
+                elements: elements,
+                selectedElement: selectedElement,
+                onTap: handleCanvasTap,
+                onPanStart: handlePanStart,
+                onPanUpdate: handlePanUpdate,
+                onPanEnd: handlePanEnd,
+              ),
+            ),
               ),
             ),
           ],
@@ -203,12 +221,25 @@ class DrawingBoard extends HookConsumerWidget {
 
   String _getToolName(ElementType type) {
     switch (type) {
+      case ElementType.select:
+        return '选择';
       case ElementType.rectangle:
         return '矩形';
       case ElementType.circle:
         return '圆形';
       case ElementType.line:
         return '直线';
+    }
+  }
+
+  SystemMouseCursor _getCursorForTool(ElementType type) {
+    switch (type) {
+      case ElementType.select:
+        return SystemMouseCursors.basic;
+      case ElementType.rectangle:
+      case ElementType.circle:
+      case ElementType.line:
+        return SystemMouseCursors.precise;
     }
   }
 }

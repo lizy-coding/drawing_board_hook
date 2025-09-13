@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 /// 画板元素类型枚举
 enum ElementType {
+  select,    // 选择工具
   rectangle,
   circle,
   line,
@@ -67,9 +68,72 @@ class DrawingElement {
     );
   }
 
+  /// 获取右下角缩放控制点位置
+  Offset get resizeHandle {
+    return Offset(
+      position.dx + size.width,
+      position.dy + size.height,
+    );
+  }
+
+  /// 获取缩放控制点的矩形区域（用于点击检测）
+  Rect get resizeHandleRect {
+    const handleSize = 8.0; // 控制点大小
+    final handleCenter = resizeHandle;
+    return Rect.fromCenter(
+      center: handleCenter,
+      width: handleSize,
+      height: handleSize,
+    );
+  }
+
+  /// 检查指定点是否在缩放控制点内
+  bool isPointInResizeHandle(Offset point) {
+    return resizeHandleRect.contains(point);
+  }
+
+  /// 以左上角为原点进行缩放，返回新的元素
+  DrawingElement scaleFromTopLeft(Offset newBottomRight) {
+    // 计算新的宽度和高度
+    final newWidth = math.max(10.0, newBottomRight.dx - position.dx); // 最小宽度10px
+    final newHeight = math.max(10.0, newBottomRight.dy - position.dy); // 最小高度10px
+    
+    return copyWith(
+      size: Size(newWidth, newHeight),
+    );
+  }
+
+  /// 根据鼠标位置进行缩放（保持比例可选）
+  DrawingElement resizeToPoint(Offset mousePosition, {bool maintainAspectRatio = false}) {
+    if (maintainAspectRatio) {
+      // 保持宽高比缩放
+      final originalAspectRatio = size.width / size.height;
+      final deltaX = mousePosition.dx - position.dx;
+      final deltaY = mousePosition.dy - position.dy;
+      
+      // 根据较大的变化量来确定新尺寸
+      final newWidth = math.max(10.0, deltaX);
+      final newHeight = math.max(10.0, newWidth / originalAspectRatio);
+      
+      // 如果高度变化更大，则以高度为准
+      if (deltaY > newHeight) {
+        final adjustedHeight = math.max(10.0, deltaY);
+        final adjustedWidth = math.max(10.0, adjustedHeight * originalAspectRatio);
+        return copyWith(size: Size(adjustedWidth, adjustedHeight));
+      }
+      
+      return copyWith(size: Size(newWidth, newHeight));
+    } else {
+      // 自由缩放
+      return scaleFromTopLeft(mousePosition);
+    }
+  }
+
   /// 检查指定点是否在元素内
   bool containsPoint(Offset point) {
     switch (type) {
+      case ElementType.select:
+        return false; // 选择工具不是实际元素，不参与碰撞检测
       case ElementType.rectangle:
         return bounds.contains(point);
       case ElementType.circle:
@@ -94,6 +158,9 @@ class DrawingElement {
     final snapPoints = <Offset>[];
     
     switch (type) {
+      case ElementType.select:
+        // 选择工具不是实际元素，不提供吸附点
+        break;
       case ElementType.rectangle:
         // 矩形的8个吸附点：4个角点 + 4个边中点
         snapPoints.addAll([
