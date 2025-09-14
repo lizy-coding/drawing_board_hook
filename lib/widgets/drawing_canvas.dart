@@ -47,21 +47,33 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
            position.dy > size.height - hotZoneSize;
   }
 
+  /// 检查是否在左下角热区
+  bool _isInBottomLeftHotZone(Offset position, Size size) {
+    const hotZoneSize = 20.0;
+    return position.dx < hotZoneSize && 
+           position.dy > size.height - hotZoneSize;
+  }
+
   /// 根据位置更新光标
   void _updateCursor(Offset position, Size size) {
     SystemMouseCursor newCursor;
     
     final isInResize = _isInResizeHandle(position);
-    final isInHotZone = _isInBottomRightHotZone(position, size);
+    final isInBottomRightHotZone = _isInBottomRightHotZone(position, size);
+    final isInBottomLeftHotZone = _isInBottomLeftHotZone(position, size);
     
     if (isInResize) {
       // 在缩放控制点上显示双箭头光标，明确指示缩放功能
       newCursor = SystemMouseCursors.resizeDownRight;
       print('光标切换到缩放模式 - 缩放控制点');
-    } else if (isInHotZone) {
+    } else if (isInBottomRightHotZone) {
       // 右下角热区也显示双箭头光标
       newCursor = SystemMouseCursors.resizeDownRight;
       print('光标切换到缩放模式 - 右下角热区');
+    } else if (isInBottomLeftHotZone) {
+      // 左下角热区显示对角双箭头光标
+      newCursor = SystemMouseCursors.resizeUpRight;
+      print('光标切换到缩放模式 - 左下角热区');
     } else {
       newCursor = SystemMouseCursors.basic;
     }
