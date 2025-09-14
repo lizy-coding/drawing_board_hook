@@ -84,7 +84,8 @@ class GestureManager {
   
   /// 处理拖拽开始
   void handlePanStart(Offset position) {
-    if (!hasActiveGesture) return;
+    // 检查是否有准备状态的手势（不只是激活状态）
+    if (_currentGesture.type == GestureType.none) return;
     
     switch (_currentGesture.type) {
       case GestureType.drag:
@@ -145,8 +146,16 @@ class GestureManager {
   void handleTap() {
     if (hasActiveGesture) return;
     
-    // 只有当没有活动手势时才处理tap
-    if (_currentGesture.type == GestureType.none) {
+    // 处理拖拽手势的tap事件（选择元素）
+    if (_currentGesture.type == GestureType.drag) {
+      onTapCallback?.call(_currentGesture.startPosition);
+    }
+    // 处理创建手势的tap事件
+    else if (_currentGesture.type == GestureType.create) {
+      onTapCallback?.call(_currentGesture.startPosition);
+    }
+    // 处理普通tap事件
+    else if (_currentGesture.type == GestureType.none) {
       onTapCallback?.call(_currentGesture.startPosition);
     }
     

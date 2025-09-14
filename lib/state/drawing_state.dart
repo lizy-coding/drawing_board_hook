@@ -1,4 +1,5 @@
 import 'package:adsorption_line/models/drawing_element.dart';
+import 'package:adsorption_line/services/adsorption_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -55,15 +56,26 @@ class DrawingState extends ChangeNotifier {
   void startDrag(Offset position) {
     _isDragging = true;
     _dragOffset = position;
+    
+    // 通知AdsorptionManager开始新的拖拽操作，重置锁定状态
+    AdsorptionManager.startDrag();
+    
     notifyListeners();
   }
 
   void updateDrag(Offset position) {
     if (_isDragging && _selectedElement != null && _dragOffset != null) {
       final delta = position - _dragOffset!;
-      final newPosition = _selectedElement!.position + delta;
+      final rawNewPosition = _selectedElement!.position + delta;
 
-      final updatedElement = _selectedElement!.copyWith(position: newPosition);
+      // 应用吸附效果计算最终位置
+      final snappedPosition = AdsorptionManager.snapPosition(
+        rawNewPosition,
+        _elements,
+        _selectedElement!,
+      );
+
+      final updatedElement = _selectedElement!.copyWith(position: snappedPosition);
       updateElement(updatedElement);
 
       _dragOffset = position;

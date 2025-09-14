@@ -115,7 +115,8 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
           );
         },
         onTap: () {
-          // onTap在onTapDown之后触发，GestureDetector.onTap不提供details
+          // 调用GestureManager处理tap事件，用于创建新元素
+          _gestureManager.handleTap();
         },
         onPanStart: (details) {
           _gestureManager.handlePanStart(details.localPosition);
