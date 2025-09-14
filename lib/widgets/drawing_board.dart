@@ -61,12 +61,16 @@ class DrawingBoard extends HookConsumerWidget {
     }
 
     void handlePanStart(Offset position) {
+      // 简化后的pan处理，具体逻辑已移动到GestureManager
+      // 这里只需要处理实际的拖拽/缩放操作
+      
       // 优先检查是否点击了缩放控制点
       if (selectedElement != null && drawingState.isPointInResizeHandle(position)) {
         ref.read(drawingStateProvider.notifier).startResize(position);
         return;
       }
       
+      // 检查是否选中了元素进行拖拽
       final element = drawingState.findElementAt(position);
       if (element != null) {
         ref.read(drawingStateProvider.notifier).selectElement(element.id);

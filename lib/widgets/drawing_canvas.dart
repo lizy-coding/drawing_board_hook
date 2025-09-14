@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/drawing_element.dart';
 import '../services/adsorption_manager.dart';
+import '../services/gesture_manager.dart';
 import 'dart:math' as math;
 
 /// 画板画布组件
@@ -31,6 +32,7 @@ class DrawingCanvas extends StatefulWidget {
 
 class _DrawingCanvasState extends State<DrawingCanvas> {
   SystemMouseCursor _currentCursor = SystemMouseCursors.basic;
+  final GestureManager _gestureManager = GestureManager();
 
   /// 检查是否在缩放控制点上
   bool _isInResizeHandle(Offset position) {
@@ -54,11 +56,11 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
     
     if (isInResize) {
       // 在缩放控制点上显示双箭头光标，明确指示缩放功能
-      newCursor = SystemMouseCursors.resizeUpLeftDownRight;
+      newCursor = SystemMouseCursors.resizeDownRight;
       print('光标切换到缩放模式 - 缩放控制点');
     } else if (isInHotZone) {
       // 右下角热区也显示双箭头光标
-      newCursor = SystemMouseCursors.resizeUpLeftDownRight;
+      newCursor = SystemMouseCursors.resizeDownRight;
       print('光标切换到缩放模式 - 右下角热区');
     } else {
       newCursor = SystemMouseCursors.basic;
@@ -72,6 +74,28 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _configureGestureManager();
+  }
+
+  /// 配置手势管理器的回调
+  void _configureGestureManager() {
+    _gestureManager.configureCallbacks(
+      onTap: widget.onTap,
+      onDragStart: (position, element) => widget.onPanStart(position),
+      onDragUpdate: widget.onPanUpdate,
+      onDragEnd: widget.onPanEnd,
+      onResizeStart: (position, element) => widget.onPanStart(position),
+      onResizeUpdate: widget.onPanUpdate,
+      onResizeEnd: widget.onPanEnd,
+      onCreateStart: (position) => widget.onPanStart(position),
+      onCreateUpdate: widget.onPanUpdate,
+      onCreateEnd: widget.onPanEnd,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MouseRegion(
       cursor: _currentCursor,
@@ -82,10 +106,26 @@ class _DrawingCanvasState extends State<DrawingCanvas> {
         }
       },
       child: GestureDetector(
-        onTapDown: (details) => widget.onTap(details.localPosition),
-        onPanStart: (details) => widget.onPanStart(details.localPosition),
-        onPanUpdate: (details) => widget.onPanUpdate(details.localPosition),
-        onPanEnd: (_) => widget.onPanEnd(),
+        onTapDown: (details) {
+          _gestureManager.handleTapDown(
+            details.localPosition,
+            widget.elements,
+            widget.selectedElement,
+            widget.isPointInResizeHandle ?? (position) => false,
+          );
+        },
+        onTap: () {
+          // onTap在onTapDown之后触发，GestureDetector.onTap不提供details
+        },
+        onPanStart: (details) {
+          _gestureManager.handlePanStart(details.localPosition);
+        },
+        onPanUpdate: (details) {
+          _gestureManager.handlePanUpdate(details.localPosition);
+        },
+        onPanEnd: (_) {
+          _gestureManager.handlePanEnd();
+        },
         child: CustomPaint(
           painter: DrawingCanvasPainter(
             elements: widget.elements,
